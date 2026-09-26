@@ -1,0 +1,55 @@
+name: Release skill
+
+# Tag a skill release as "<skill-folder-name>-vX.Y.Z", e.g.:
+#   git tag ai-requirements-analyst-v1.1.0
+#   git push origin ai-requirements-analyst-v1.1.0
+# This packages just that skill and publishes it as a GitHub Release with
+# the .skill file attached, so anyone can grab a specific pinned version.
+on:
+  push:
+    tags:
+      - "*-v[0-9]+.[0-9]+.[0-9]+"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Determine skill name from tag
+        id: tag
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          SKILL_NAME="${TAG%-v*}"
+          echo "skill_name=$SKILL_NAME" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Confirm the skill directory exists
+        run: |
+          if [ ! -d "skills/${{ steps.tag.outputs.skill_name }}" ]; then
+            echo "No skills/${{ steps.tag.outputs.skill_name }} directory."
+            echo "Tags must look like <skill-folder-name>-vX.Y.Z."
+            exit 1
+          fi
+
+      - name: Validate skill
+        run: python3 scripts/validate_skill.py "skills/${{ steps.tag.outputs.skill_name }}"
+
+      - name: Package skill
+        run: python3 scripts/package_skill.py "skills/${{ steps.tag.outputs.skill_name }}"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ steps.tag.outputs.tag }}" \
+            "dist/${{ steps.tag.outputs.skill_name }}.skill" \
+            --title "${{ steps.tag.outputs.skill_name }} ${{ steps.tag.outputs.tag }}" \
+            --notes "Automated release of the \`${{ steps.tag.outputs.skill_name }}\` skill. See CHANGELOG.md for details."

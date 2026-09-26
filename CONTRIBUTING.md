@@ -46,11 +46,33 @@ python3 scripts/validate_skill.py skills/<skill-name>
 
 This checks frontmatter presence, description length, name/folder match, and basic structural issues. It doesn't (and can't) judge whether the skill's actual instructions are good — that still needs a human read and, ideally, a couple of test prompts run against it.
 
+**Don't hand-edit the skill table in README.md.** It's generated from each skill's `SKILL.md` frontmatter. After adding or changing a skill, run:
+
+```bash
+python3 scripts/update_readme.py
+```
+
+and commit the result. If you forget, CI will fail the check and tell you to run it — and if a PR somehow merges without it, a workflow on `main` regenerates and commits the table automatically, so the README can't stay stale for long either way.
+
 ## Pull requests
 
 - One skill (or one focused change) per PR where possible.
 - Fill in the PR template, including the test prompts you ran and what the output looked like.
-- CI runs `validate_skill.py` against any changed skill automatically.
+- CI runs automatically on every push and PR:
+  - `validate_skill.py` — structural checks on every skill
+  - `update_readme.py --check` — fails if the README table is out of sync
+  - a packaging job that builds a `.skill` artifact for every skill and attaches it to the workflow run, so reviewers can grab a working build without waiting for a release
+
+## Releasing a skill
+
+Tag pushes matching `<skill-folder-name>-vX.Y.Z` (e.g. `ai-requirements-analyst-v1.1.0`) trigger a release workflow that validates, packages, and publishes that skill as a GitHub Release with the `.skill` file attached:
+
+```bash
+git tag ai-requirements-analyst-v1.1.0
+git push origin ai-requirements-analyst-v1.1.0
+```
+
+Update `CHANGELOG.md` as part of the PR that precedes the tag, not as part of the tag itself.
 
 ## Code of Conduct
 

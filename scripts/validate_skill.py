@@ -23,43 +23,12 @@ import re
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
-SKILLS_DIR = REPO_ROOT / "skills"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from skill_utils import parse_frontmatter, SKILLS_DIR  # noqa: E402
+
 MAX_DESCRIPTION_LEN = 1024
 RECOMMENDED_MAX_LINES = 500
-
-FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
-FIELD_RE = re.compile(r"^([A-Za-z_]+):\s*(.*)$", re.MULTILINE)
 PATH_MENTION_RE = re.compile(r"`((?:references|scripts|assets)/[^`\s]+)`")
-
-
-def parse_frontmatter(text):
-    m = FRONTMATTER_RE.match(text)
-    if not m:
-        return None, text
-    raw = m.group(1)
-    fields = {}
-    # Handle simple `key: value` and `key: >` / `key: |` folded scalars minimally.
-    lines = raw.splitlines()
-    i = 0
-    while i < len(lines):
-        line = lines[i]
-        fm = re.match(r"^([A-Za-z_]+):\s*(.*)$", line)
-        if fm:
-            key, val = fm.group(1), fm.group(2).strip()
-            if val in (">", "|", ">-", "|-", ""):
-                # Folded/literal block scalar — collect indented continuation lines
-                collected = []
-                i += 1
-                while i < len(lines) and (lines[i].startswith(" ") or lines[i].strip() == ""):
-                    collected.append(lines[i].strip())
-                    i += 1
-                fields[key] = " ".join(c for c in collected if c)
-                continue
-            else:
-                fields[key] = val.strip('"').strip("'")
-        i += 1
-    return fields, text[m.end():]
 
 
 def validate_skill(skill_dir: Path):
@@ -104,7 +73,6 @@ def validate_skill(skill_dir: Path):
             f"moving detail into references/"
         )
 
-    # Best-effort check that referenced paths exist
     for match in PATH_MENTION_RE.finditer(text):
         rel_path = match.group(1)
         if not (skill_dir / rel_path).exists():

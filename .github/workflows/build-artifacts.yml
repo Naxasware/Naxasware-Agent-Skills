@@ -1,0 +1,32 @@
+name: Build skill artifacts
+
+# Packages every skill into a .skill zip and attaches it to the workflow run
+# as a downloadable artifact — so a reviewer (or the PR author) can grab a
+# ready-to-install build without waiting for a tagged release.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "skills/**"
+  pull_request:
+    paths:
+      - "skills/**"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Package all skills
+        run: python3 scripts/package_skill.py
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packaged-skills
+          path: dist/*.skill
+          retention-days: 14

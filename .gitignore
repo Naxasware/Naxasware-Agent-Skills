@@ -6,6 +6,7 @@ __pycache__/
 
 # Packaged skill artifacts (built, not source — regenerate from skills/)
 *.skill
+/dist/
 
 # OS / editor cruft
 .DS_Store

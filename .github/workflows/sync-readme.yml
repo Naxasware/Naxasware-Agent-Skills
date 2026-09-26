@@ -1,0 +1,41 @@
+name: Sync README skill table
+
+# Runs after a merge to main so the README table self-heals even if a PR
+# was merged without running `scripts/update_readme.py` locally (the
+# "Validate skills" workflow catches this on the PR itself — this is the
+# safety net for main).
+on:
+  push:
+    branches: [main]
+    paths:
+      - "skills/**"
+      - "scripts/update_readme.py"
+      - "scripts/skill_utils.py"
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Regenerate README skill table
+        run: python3 scripts/update_readme.py
+
+      - name: Commit changes if any
+        run: |
+          if git diff --quiet -- README.md; then
+            echo "README already up to date — nothing to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add README.md
+          git commit -m "chore: sync README skill table [skip ci]"
+          git push

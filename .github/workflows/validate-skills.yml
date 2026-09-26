@@ -18,3 +18,6 @@ jobs:
 
       - name: Validate skill structure
         run: python3 scripts/validate_skill.py
+
+      - name: Check README skill table is up to date
+        run: python3 scripts/update_readme.py --check
