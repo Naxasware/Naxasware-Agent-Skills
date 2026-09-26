@@ -1,1 +1,64 @@
-# Naxasware-Agent-Skills
+# Naxasware Agent Skills
+
+A collection of [Agent Skills](https://www.anthropic.com/news/skills) built by [Naxasware](https://github.com/Naxasware) — reusable, packaged instructions that extend what Claude (and compatible agents) can do for a specific domain or workflow.
+
+Each skill is self-contained: a `SKILL.md` file (the instructions an agent reads) plus any bundled references, scripts, or assets it needs. See [What is a Skill?](#what-is-a-skill) below if you're new to the format.
+
+## Skills
+
+| Skill | Description |
+|---|---|
+| [`ai-requirements-analyst`](skills/ai-requirements-analyst) | Turns vague business ideas, rough notes, or existing requirements docs into clear, structured, implementation-ready software requirements — acting as a professional Business Analyst. |
+
+More skills will be added here as they're built. See [CONTRIBUTING.md](CONTRIBUTING.md) if you'd like to add one.
+
+## Using a skill
+
+**Claude.ai / Claude apps:** download the packaged `.skill` file for a skill (or zip the skill's folder yourself) and add it from the skills picker in Settings, or drop the folder in when your org's skill catalog supports uploads.
+
+**Claude Code / Cowork / API:** copy the skill's folder into your project's skills directory (commonly `.claude/skills/<skill-name>/` or `/mnt/skills/user/<skill-name>/`, depending on your setup) so its `SKILL.md` is discoverable.
+
+**Manually:** every skill is just a folder of markdown and, sometimes, scripts — you can also just point an agent at the `SKILL.md` path directly, or paste its contents into a prompt/project instructions.
+
+## Repository structure
+
+```
+Naxasware-Agent-Skills/
+├── skills/
+│   └── <skill-name>/
+│       ├── SKILL.md            — required: frontmatter (name, description) + instructions
+│       ├── references/         — optional: docs loaded into context only when needed
+│       ├── scripts/            — optional: deterministic helper scripts the skill calls
+│       └── assets/             — optional: templates/files used in the skill's output
+├── scripts/
+│   └── validate_skill.py       — structural lint used in CI and locally before opening a PR
+├── .github/                    — issue/PR templates and the validation workflow
+├── CONTRIBUTING.md
+├── CODE_OF_CONDUCT.md
+├── SECURITY.md
+├── CHANGELOG.md
+└── LICENSE
+```
+
+## What is a Skill?
+
+A Skill is a folder with a `SKILL.md` file at minimum:
+
+```markdown
+---
+name: skill-name
+description: What this does and, importantly, when an agent should reach for it — this is the primary trigger mechanism, so be specific and a little "pushy" about when it applies.
+---
+
+Markdown instructions the agent follows once triggered.
+```
+
+Skills use progressive disclosure: the `name`/`description` are always visible to the agent; the SKILL.md body loads once triggered; anything in `references/`, `scripts/`, or `assets/` loads only when the skill's own instructions point to it. This keeps large or specialized skills cheap to have "installed" without bloating every conversation.
+
+## Contributing
+
+New skill proposals, improvements to existing skills, and bug reports are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## License
+
+Licensed under the [Apache License 2.0](LICENSE). See [NOTICE](NOTICE) for attribution details.
