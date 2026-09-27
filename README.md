@@ -14,6 +14,7 @@ Each skill is self-contained: a `SKILL.md` file (the instructions an agent reads
 | Skill | Description |
 |---|---|
 | [`ai-requirements-analyst`](skills/ai-requirements-analyst) | Turns vague business ideas, rough notes, informal process descriptions, or existing requirements docs into clear, structured, implementation-ready software requirements, acting as a professional Business Analyst. Use... |
+| [`ai-system-architect`](skills/ai-system-architect) | Acts as a professional System/Solution/Technical Architect, turning a business problem, PRD, SRS (including ai-requirements-analyst output), rough idea, or existing system description into implementation-ready... |
 <!-- SKILLS_TABLE_END -->
 
 More skills will be added here as they're built (the table above updates itself). See [CONTRIBUTING.md](CONTRIBUTING.md) if you'd like to add one.
