@@ -8,7 +8,7 @@ When enough information exists to warrant a full document, these are the possibl
 01 Executive Architecture Summary
 02 Business Context
 03 Architecture Drivers
-04 Requirements Summary
+04 Requirements Summary (with a requirements-coverage table when upstream requirements exist)
 05 Constraints
 06 Assumptions
 07 Quality Attributes
@@ -43,6 +43,7 @@ When enough information exists to warrant a full document, these are the possibl
 36 Phased Roadmap
 37 Architecture Validation
 38 Open Questions
+39 Handoff to next stage   (only when the document feeds ai-workflow-architect; see chaining.md)
 ```
 
 For a Quick Analysis, Discovery-style answer, or a short comparison, pick only the handful of sections that actually answer what was asked — most of this list exists for the rare case that genuinely needs a Full SRS-to-architecture handoff.

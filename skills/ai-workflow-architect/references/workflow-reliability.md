@@ -9,6 +9,7 @@ Reliability is a first-class requirement. For every step with an external effect
 4. Timeouts
 5. Partial failure and recovery
 6. Human-in-the-loop
+6b. Waiting on an external party
 7. State and resumption
 8. Per-step reliability checklist
 
@@ -61,6 +62,18 @@ Require human review when confidence is low, financial or legal impact is high, 
 - How the decision is recorded (who, when, what) for audit
 - What happens to the workflow while waiting (persisted state, not an open connection)
 
+## 6b. Waiting on an external party (not a reviewer)
+
+Some steps wait for someone outside the team: a candidate confirming an interview time, a customer replying, a supplier sending a document, a webhook callback from another system. Nobody is obliged to answer, so a design with no limit waits forever and quietly leaks work. For each such step define:
+
+- **Wait limit**: how long to wait before acting (a business decision; if unknown write NOT PROVIDED and raise it as an open question).
+- **Reminder**: whether, when and how often to nudge the other party, and who approves the message.
+- **Expiry path**: what happens when the limit passes (release held resources such as calendar slots, notify the owner, close or park the item, never proceed as if they had agreed).
+- **Late reply**: what happens if the answer arrives after expiry (reopen, or ignore with a message).
+- **Matching**: how the reply is tied back to the right item (idempotency key, correlation ID, signed link), so a wrong or duplicate reply cannot confirm something else.
+
+Model the wait as persisted state with a due time, not an open connection. Give the step a type that says it waits (`wait for reply`, `callback`), because the validator then requires a real Timeout cell.
+
 ## 7. State and resumption
 
 Long or human-gated workflows need persisted state: current step, inputs, outputs of completed steps, idempotency keys, correlation ID. Without it, a restart repeats side effects or loses work. Say where state lives and who owns it; avoid hidden state.
@@ -69,7 +82,7 @@ Long or human-gated workflows need persisted state: current step, inputs, output
 
 - [ ] Failure behavior stated (retry / compensate / park / fail)
 - [ ] Retry policy or explicit "no retry" with reason
-- [ ] Timeout set
+- [ ] Timeout set (for steps that wait on a person or outside reply: wait limit, reminder, expiry path)
 - [ ] Idempotent, or protected by an idempotency key
 - [ ] Side effect classified (read-only / reversible / irreversible)
 - [ ] Irreversible effects behind validation or approval

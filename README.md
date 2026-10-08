@@ -20,6 +20,16 @@ Each skill is self-contained: a `SKILL.md` file (the instructions an agent reads
 
 More skills will be added here as they're built (the table above updates itself). See [CONTRIBUTING.md](CONTRIBUTING.md) if you'd like to add one.
 
+## Chaining the analysis skills
+
+`ai-requirements-analyst` → `ai-system-architect` → `ai-workflow-architect` are built to run one after another. Each stage reads the previous document, cites its IDs instead of redefining them, and ends with a Handoff block; `validate_chain.py` checks the hand-off.
+
+```bash
+python3 skills/ai-workflow-architect/scripts/validate_chain.py 01-requirements.md 02-architecture.md 03-workflow.md
+```
+
+Full method, prompts and validators: [`references/chaining.md`](skills/ai-workflow-architect/references/chaining.md) (identical in all three skills). `idscan.py` and `validate_chain.py` are copied into each skill so each stays self-contained; `validate_chain.py` warns if the copies drift apart.
+
 ## Using a skill
 
 **Claude.ai / Claude apps:** download the packaged `.skill` file for a skill (or zip the skill's folder yourself) and add it from the skills picker in Settings, or drop the folder in when your org's skill catalog supports uploads.

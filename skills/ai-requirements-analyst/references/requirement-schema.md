@@ -127,6 +127,8 @@ Prioritize realistic ones over an exhaustive theoretical list: missing data, dup
 
 ## Acceptance Criterion (AC-xxx)
 
+Name it after the requirement it verifies: `AC-<FR number>-<n>` (`AC-007-1`, `AC-007-2` verify `FR-007`). Every functional requirement gets at least one; `scripts/validate_ids.py` reports the ones that do not. If a requirement truly cannot be tested yet (for example a performance target nobody has defined), say so in its own text instead of leaving it silent.
+
 Prefer Given/When/Then:
 
 ```

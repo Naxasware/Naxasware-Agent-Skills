@@ -8,17 +8,27 @@ Checks (see references/output-schema.md for the expected structure):
     may say "Not applicable: <reason>" instead of having content
   - step coverage: each STEP needs failure behavior, retry and timeout
   - traceability: requirements reach a step/task; at full depth, tasks reach a test
-  - unlabeled cost/price figures (must carry an evidence tag or gap marker)
+  - unlabeled figures anywhere in the document: money, percentages, volumes
+    (each must carry an evidence tag or gap marker)
+  - step tables carry the schema's core columns (purpose, type, input, output,
+    failure, retry, timeout, effect); human and external-wait steps need a
+    timeout / expiry path
   - hard-coded secrets
   - agent specification completeness and justification
   - high-risk actions without any human-approval / idempotency discussion
   - leftover placeholders (TBD, TODO, FIXME, {{...}})
 
 Usage:
-    python3 validate_workflow.py architecture.md [--depth standard] [--strict]
+    python3 validate_workflow.py architecture.md [--depth full] [--strict]
+    python3 validate_workflow.py 03-workflow.md --upstream 01-requirements.md 02-architecture.md
 
-    --depth   quick | standard (default) | full
-    --strict  treat warnings as errors
+    --depth     quick | standard | full. Default: read from a `Depth: ...` line near the
+                top of the document, else standard.
+    --upstream  earlier documents of the chain; cited upstream IDs (FR-, NFR-, AD-,
+                ADR-, INT-, COMP-, A-, Q- ...) are verified against them. If omitted,
+                the files named in the document's `Chain:` header are used when they
+                sit next to it.
+    --strict    treat warnings as errors
 
 Exit code 1 if any error (or any warning with --strict). Standard library only.
 """
@@ -34,7 +44,8 @@ import validate_ids as vids  # noqa: E402
 SECTIONS = {
     "objective": ("Business Objective", r"business objective|objective|business goal"),
     "workflow": ("Workflow Architecture", r"workflow architecture|step definitions?|target process|workflow steps|selected architecture"),
-    "errors": ("Error Handling", r"error|failure|retry|recover"),
+    "errors": ("Error Handling", r"\berrors?\b|failure"),
+    "retry": ("Retry & Recovery", r"retry|retries|recover|idempoten"),
     "assumptions": ("Assumptions", r"assumption"),
     "questions": ("Open Questions", r"open question|unknowns?"),
     "requirements": ("Requirements", r"requirement"),
@@ -58,7 +69,7 @@ SECTIONS = {
 }
 QUICK = ["objective", "workflow", "errors", "assumptions", "questions"]
 STANDARD = QUICK + ["requirements", "trigger", "security", "observability", "risks", "blueprint"]
-FULL = STANDARD + ["actors", "drivers", "quality", "dataflow", "cost", "scalability",
+FULL = STANDARD + ["retry", "actors", "drivers", "quality", "dataflow", "cost", "scalability",
                    "alternatives", "selected", "diagrams", "adrs", "testing", "validation"]
 DEPTHS = {"quick": QUICK, "standard": STANDARD, "full": FULL}
 
@@ -67,6 +78,12 @@ TAG_RE = re.compile(
     r"\b(?:ESTIMATE|ESTIMATED|ASSUMED|ASSUMPTION|UNKNOWN|NOT PROVIDED|REQUIRES VALIDATION)\b|"
     r"\bA-\d{3}\b", re.I)
 MONEY_RE = re.compile(r"[$€£]\s?\d|\b\d[\d,.]*\s?(?:USD|EUR|GBP)\b|\bper (?:execution|run|month|1k|1m)\b", re.I)
+FIGURE_RES = [
+    (re.compile(r"[$€£]\s?\d|\b\d[\d,.]*\s?(?:USD|EUR|GBP)\b", re.I), "money"),
+    (re.compile(r"\b\d+(?:\.\d+)?\s?%"), "percentage"),
+    (re.compile(r"\b\d[\d,]*\s+(?:applications?|requests?|users?|orders?|tickets?|invoices?|messages?|emails?|documents?|records?|transactions?|candidates?|customers?)\b"
+                r"(?:\s+(?:per|a|each|/)\s+(?:second|minute|hour|day|week|month|year))?", re.I), "volume"),
+]
 SECRET_RES = [
     (re.compile(r"\bsk-[A-Za-z0-9_-]{20,}"), "API key (sk-...)"),
     (re.compile(r"\bAKIA[0-9A-Z]{16}\b"), "AWS access key id"),
@@ -82,7 +99,9 @@ RISKY_RE = re.compile(
     r"contracts? signing|legal)\b|\bsend(?:s|ing)?\s+(?:an?\s+)?(?:external\s+)?(?:email|e-mail|message|sms)s?\b", re.I)
 SIDE_EFFECT_RE = re.compile(r"\b(?:payments?|refunds?|orders?|send(?:s|ing)?\s+(?:an?\s+)?(?:email|e-mail|message|sms)s?|emails?\s+(?:is\s+)?sent|create[sd]?\s+(?:a\s+)?record)\b", re.I)
 HUMAN_RE = re.compile(r"human[- ]in[- ]the[- ]loop|human (?:approval|review)|manual (?:approval|review)|approval gate|\bapprov(?:e|al)\b|reviewer", re.I)
-EXTERNAL_TYPE_RE = re.compile(r"api|ai|llm|model|agent|tool|database|http|webhook|notif|email|message|human|approval|queue|search|retriev|storage", re.I)
+EXTERNAL_TYPE_RE = re.compile(r"api|ai|llm|model|agent|tool|database|http|webhook|notif|email|message|queue|search|retriev|storage", re.I)
+HUMAN_TYPE_RE = re.compile(r"human|approval|review", re.I)
+WAIT_TYPE_RE = re.compile(r"\bwait|await|reply|callback|external response|confirmation", re.I)
 EMPTY_CELL_RE = re.compile(r"^\s*(?:|-|—|–|tbd|\?)\s*$", re.I)
 NA_ONLY_RE = re.compile(r"^\s*(?:n/?a|not applicable|none|—|-)\s*\.?\s*$", re.I)
 
@@ -175,7 +194,7 @@ def check_sections(lines, heads, depth, errors, warnings):
             warnings.append(f"section '{matches[0]['title']}' is marked not applicable without a reason")
 
 
-def check_steps(lines, heads, scan_res, warnings):
+def check_steps(lines, heads, scan_res, warnings, depth="standard"):
     step_ids = set(i for i in scan_res.defs if i.startswith("STEP-"))
     if not step_ids:
         warnings.append("no STEP-### steps are defined; step failure/retry/timeout coverage cannot be checked")
@@ -192,20 +211,33 @@ def check_steps(lines, heads, scan_res, warnings):
                     return k
             return None
         fcol, rcol, tcol, ycol = col("fail"), col("retry"), col("timeout"), col("type")
-        missing = [n for n, c in (("Failure", fcol), ("Retry", rcol), ("Timeout", tcol)) if c is None]
+        core = [("Name or purpose", col("name") if col("name") is not None else col("purpose")),
+                ("Type", ycol), ("Failure", fcol), ("Retry", rcol), ("Timeout", tcol)]
+        if depth == "full":   # the detail columns the schema lists; compact tables are fine below full depth
+            core += [("Input", col("input")), ("Output", col("output")),
+                     ("Effect (read-only / reversible / irreversible)", col("effect") if col("effect") is not None else col("side"))]
+        missing = [n for n, c in core if c is None]
         if missing:
-            warnings.append(f"step table at line {idrows[0][0]} has no column for: {', '.join(missing)}")
+            warnings.append(f"step table at line {idrows[0][0]} has no column for: {', '.join(missing)} "
+                            f"(security and observability may be stated once in their own sections)")
         for no, cells in idrows:
             sid = re.match(r"^(?:\*\*|`)?(STEP-\d{3})", cells[0]).group(1)
             covered_in_tables.add(sid)
-            external = bool(ycol is not None and ycol < len(cells) and EXTERNAL_TYPE_RE.search(cells[ycol]))
+            stype = cells[ycol] if ycol is not None and ycol < len(cells) else ""
+            external = bool(EXTERNAL_TYPE_RE.search(stype))
+            human = bool(HUMAN_TYPE_RE.search(stype))
+            waits = bool(WAIT_TYPE_RE.search(stype))
             for label, c in (("Failure", fcol), ("Retry", rcol), ("Timeout", tcol)):
                 if c is None:
                     continue
                 val = cells[c] if c < len(cells) else ""
                 if EMPTY_CELL_RE.match(val):
                     warnings.append(f"{sid} (line {no}): {label} is empty")
-                elif external and label in ("Retry", "Timeout") and NA_ONLY_RE.match(val):
+                elif label == "Timeout" and (human or waits) and NA_ONLY_RE.match(val):
+                    what = "a human decision" if human else "an external reply"
+                    warnings.append(f"{sid} (line {no}): Timeout is 'N/A' but the step waits for {what}; "
+                                    f"define the wait limit (or say it is NOT PROVIDED) and the reminder/expiry path")
+                elif external and not human and label in ("Retry", "Timeout") and NA_ONLY_RE.match(val):
                     warnings.append(f"{sid} (line {no}): {label} is 'N/A' but the step type looks external; state a policy or a reason")
     for h in heads:
         m = re.match(r"^(?:\*\*|`)?(STEP-\d{3})", h["title"])
@@ -265,6 +297,24 @@ def check_cost_labels(lines, heads, warnings):
                     warnings.append(f"line {h['start'] + off + 2}: cost figure without an evidence tag or gap marker (e.g. [ASSUMED], REQUIRES VALIDATION)")
 
 
+def check_figures(text, warnings):
+    """Money, percentages and volumes anywhere in the document need an evidence tag or gap marker."""
+    in_fence = False
+    for no, line in enumerate(text.splitlines(), 1):
+        st = line.strip()
+        if st.startswith("```") or st.startswith("~~~"):
+            in_fence = not in_fence
+            continue
+        if in_fence or st.startswith("#") or TAG_RE.search(line) or "<!-- ok" in line:
+            continue
+        for rx, kind in FIGURE_RES:
+            m = rx.search(line)
+            if m:
+                warnings.append(f"line {no}: {kind} figure '{m.group(0).strip()}' without an evidence tag or gap marker "
+                                f"(e.g. [ASSUMED], [RECOMMENDED], NOT PROVIDED, REQUIRES VALIDATION)")
+                break
+
+
 def check_secrets(text, errors):
     for no, line in enumerate(text.splitlines(), 1):
         for rx, label in SECRET_RES:
@@ -305,19 +355,34 @@ def check_placeholders(text, warnings):
 
 # ---------------------------------------------------------------- entry points
 
-def validate(text, depth="standard", skip_ids=False):
-    """Return (errors, warnings) for the document text."""
+def detect_depth(text, default="standard"):
+    """Read `Depth: quick|standard|full` (or `[full]`) from the first lines of a document."""
+    for line in text.splitlines()[:40]:
+        m = re.search(r"\bdepth\b\W{0,6}(quick|standard|full)\b", line, re.I)
+        if m:
+            return m.group(1).lower()
+    return default
+
+
+def validate(text, depth="standard", skip_ids=False, upstream=None, chained=False):
+    """Return (errors, warnings) for the document text. `upstream` is {id: filename} (see idscan.load_upstream)."""
     lines = text.splitlines()
     heads = parse_headings(lines)
     scan_res = vids.scan(text)
     errors, warnings = [], []
     if not skip_ids:
-        e, _ = vids.check(scan_res)
-        errors.extend(e)
+        if upstream is not None or chained:
+            e, w = vids.idscan.check_doc(vids.idscan.scan(text), 3, upstream, True, False, chained=chained)
+            errors.extend(e)
+            warnings.extend(w)
+        else:
+            e, _ = vids.check(scan_res)
+            errors.extend(e)
     check_sections(lines, heads, depth, errors, warnings)
-    check_steps(lines, heads, scan_res, warnings)
+    check_steps(lines, heads, scan_res, warnings, depth)
     check_traceability(scan_res, depth, warnings)
     check_cost_labels(lines, heads, warnings)
+    check_figures(text, warnings)
     check_secrets(text, errors)
     check_agents(lines, heads, text, warnings)
     check_risk_coverage(text, warnings)
@@ -327,19 +392,29 @@ def validate(text, depth="standard", skip_ids=False):
 
 def main(argv):
     strict = "--strict" in argv
-    depth = "standard"
-    args = []
+    depth, upstream_paths, args, mode = None, [], [], "docs"
     it = iter(argv)
     for a in it:
         if a == "--depth":
             depth = next(it, "")
         elif a.startswith("--depth="):
             depth = a.split("=", 1)[1]
-        elif not a.startswith("--"):
+        elif a == "--upstream":
+            mode = "up"
+        elif a.startswith("--"):
+            mode = "docs"
+        elif mode == "up":
+            upstream_paths.append(a)
+        else:
             args.append(a)
-    if not args or depth not in DEPTHS:
+    if not args or (depth is not None and depth not in DEPTHS):
         print(__doc__)
         return 2
+    if upstream_paths:
+        missing = [p for p in upstream_paths if not Path(p).exists()]
+        if missing:
+            print(f"ERROR: upstream file(s) not found: {', '.join(missing)}")
+            return 1
     failed = False
     for p in args:
         path = Path(p)
@@ -347,12 +422,17 @@ def main(argv):
             print(f"ERROR: {p}: file not found")
             failed = True
             continue
-        errors, warnings = validate(path.read_text(encoding="utf-8"), depth)
+        text = path.read_text(encoding="utf-8")
+        d = depth or detect_depth(text)
+        upstream, chained, note = vids.idscan.auto_upstream(path, text, upstream_paths)
+        if note:
+            print(f"NOTE: {p}: {note}")
+        errors, warnings = validate(text, d, upstream=upstream, chained=chained)
         for w in warnings:
             print(f"WARNING: {p}: {w}")
         for e in errors:
             print(f"ERROR: {p}: {e}")
-        print(f"{p} [{depth}]: {len(errors)} error(s), {len(warnings)} warning(s)")
+        print(f"{p} [{d}{'' if depth else ', from document'}]: {len(errors)} error(s), {len(warnings)} warning(s)")
         if errors or (strict and warnings):
             failed = True
     return 1 if failed else 0

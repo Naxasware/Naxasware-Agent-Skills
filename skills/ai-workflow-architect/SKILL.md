@@ -1,6 +1,6 @@
 ---
 name: ai-workflow-architect
-description: Designs the architecture behind AI and automation workflows — what to automate, where plain logic vs. an LLM vs. an agent belongs, which triggers/tools/APIs are needed, where humans approve, and how failures, retries, security, observability, scale and cost are handled — then turns it into an implementation blueprint. Use whenever someone wants to design, review, debug, optimize, secure, scale or compare a workflow - "automate this process", "design an AI agent workflow", "should this be an agent?", "n8n / Zapier / Make / Temporal flow for...", "RAG pipeline design", "webhook to LLM to CRM", "human approval step", "why does my automation keep failing", MCP/tool design, retries/idempotency. Not for writing finished code or exporting platform workflow JSON.
+description: Designs the architecture behind AI and automation workflows — what to automate, where plain logic vs. an LLM vs. an agent belongs, which triggers/tools/APIs are needed, where humans approve, and how failures, retries, security, observability, scale and cost are handled — then turns it into an implementation blueprint. Use whenever someone wants to design, review, debug, optimize, secure, scale or compare a workflow - "automate this process", "design an AI agent workflow", "should this be an agent?", "n8n / Zapier / Make / Temporal flow for...", "RAG pipeline design", "webhook to LLM to CRM", "human approval step", "why does my automation keep failing", MCP/tool design, retries/idempotency. Not for writing finished code or exporting platform workflow JSON. Stage 3 of the requirements → architecture → workflow chain.
 ---
 
 # AI Workflow Architect
@@ -100,7 +100,21 @@ Stable IDs keep requirements traceable from business goal to test. Field structu
 | `DEC-001` | Decision point | `WRISK-001` | Risk |
 | `A-001` / `Q-001` | Assumption / open question | | |
 
-The chain to keep intact: BO → WR → WD → STEP → TOOL → TASK → TEST. The prefixes `BO`, `A`, `Q` match the `ai-requirements-analyst` skill, so its output can feed this one directly.
+The chain to keep intact: BO → WR → WD → STEP → TOOL → TASK → TEST. When the input comes from `ai-requirements-analyst` and `ai-system-architect`, their IDs (`BO`, `FR`, `NFR`, `BR`, `AIR`, `IR`, `AC`, `ADR`, `INT`, `COMP` ...) are **cited, not redefined**, and `A` / `Q` numbering continues after the highest upstream number. Stand-alone, define `BO-###` yourself. The rules are in `references/chaining.md`.
+
+## Running as stage 3 of the chain
+
+This is the last of three skills (`ai-requirements-analyst` → `ai-system-architect` → `ai-workflow-architect`). When requirements and an architecture exist, or the user says "run the chain", read `references/chaining.md` and:
+
+- Read **both** upstream documents completely before writing. The architecture's decisions (ADRs, components, integrations, locked decisions) are inputs here, not options to reopen silently.
+- Start with a **Chain header** and a `Depth:` line (`upstream=<01>, <02>`, `next=none`).
+- Source each `WR` from an upstream ID (`FR-003`, `BR-001`, `AIR-002`) in its Source column; the Business Objective table lists `BO` IDs in a later column (the first cell defines an ID, so don't put the upstream `BO` first).
+- Add an **Upstream coverage** table (under a heading containing "Coverage") showing where every upstream `FR`, `NFR`, `BR`, `AIR`, `IR`, `AC`, `ADR`, `INT`, `COMP` lands: a `WR`, `STEP`, `TOOL`, `TASK` or `TEST`, or *deferred / out of scope / not a workflow concern* with a reason (a user-interface screen, for instance).
+- Carry priorities forward. If a "Should" becomes "Optional", write the reason next to it.
+- Steps that wait for a person or an outside reply (reviewer, customer, webhook callback) get a wait limit and an expiry path, or the words NOT PROVIDED plus the open question that settles it.
+- Finish by running `validate_chain.py` on all three documents.
+
+If the user is not there to answer, record questions as `Q-###` and proceed on labeled assumptions (`references/chaining.md` section 4).
 
 ## Classify recommendations
 
@@ -125,13 +139,16 @@ Short answers and Quick designs go in the conversation. A Standard or Full archi
 Before handing over, validate if Python 3 is available (standard library only):
 
 ```bash
-python3 scripts/validate_workflow.py architecture.md --depth standard
+python3 scripts/validate_workflow.py architecture.md            # depth read from the document's "Depth:" line
 python3 scripts/validate_ids.py architecture.md
 python3 scripts/validate_diagrams.py architecture.md
 python3 scripts/generate_report.py architecture.md -o report.md
+# inside the chain, add the upstream documents:
+python3 scripts/validate_workflow.py 03-workflow.md --upstream 01-requirements.md 02-architecture.md
+python3 scripts/validate_chain.py 01-requirements.md 02-architecture.md 03-workflow.md
 ```
 
-`validate_workflow.py` checks required sections for the chosen depth, step failure/retry/timeout coverage, traceability, unlabeled figures, leaked secrets and agent-spec completeness. `validate_ids.py` catches duplicate, dangling and malformed IDs. `validate_diagrams.py` checks Mermaid syntax and that diagram IDs exist in the document. `generate_report.py` summarizes ID counts, traceability, assumptions, open questions, risks and validation status. Fix errors before delivery; explain any warning you leave.
+`validate_workflow.py` checks required sections for the chosen depth, step tables (core columns, failure / retry / timeout, timeout paths for human and waiting steps), traceability, unlabeled money / percentage / volume figures anywhere in the document, leaked secrets and agent-spec completeness. `validate_ids.py` catches duplicate, dangling and malformed IDs; with `--upstream` it also verifies cited upstream IDs and rejects restating them. `validate_diagrams.py` checks Mermaid syntax and that diagram IDs exist in the document. `validate_chain.py` checks the hand-off across the documents. `generate_report.py` summarizes ID counts, traceability, assumptions, open questions, risks and validation status. Fix errors before delivery; explain any warning you leave.
 
 ## Reference map
 
@@ -152,5 +169,6 @@ python3 scripts/generate_report.py architecture.md -o report.md
 | `references/diagram-methodology.md` | Drawing Mermaid/PlantUML/ASCII diagrams |
 | `references/adr-template.md` | ADRs and risk register entries |
 | `references/output-schema.md` | Output structure, field schemas, validation checklist |
+| `references/chaining.md` | Running with the requirements and architecture skills: header, handoff, ID ownership, coverage, validators |
 
 Worked examples in `examples/`: `simple-automation.md` (Quick), `ai-workflow.md`, `ai-agent.md`, `rag-workflow.md`, `human-in-loop.md`, `business-process.md` (Standard/Full). All use invented scenarios for illustration only.

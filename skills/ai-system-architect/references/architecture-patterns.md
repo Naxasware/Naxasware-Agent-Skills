@@ -53,7 +53,7 @@ Before defining components, be explicit about what's inside vs. outside the syst
 
 ## Component architecture
 
-For each major component, define:
+For each major component, define (the ID is `COMP-001`, `COMP-002`, … and is defined once; other documents cite it):
 
 ```
 Component ID

@@ -28,11 +28,14 @@ ai-workflow-architect/
 ## Optional scripts
 
 ```bash
-python3 scripts/validate_workflow.py architecture.md --depth standard   # sections, step coverage, traceability, secrets
+python3 scripts/validate_workflow.py architecture.md                      # sections, step coverage, traceability, figures, secrets (depth read from the document)
 python3 scripts/validate_ids.py architecture.md                         # duplicate / dangling / malformed IDs
 python3 scripts/validate_diagrams.py architecture.md                    # Mermaid/PlantUML lint + ID consistency
 python3 scripts/generate_report.py architecture.md -o report.md         # summary report
+python3 scripts/validate_chain.py 01-requirements.md 02-architecture.md 03-workflow.md   # hand-off across the three skills
 ```
+
+This is stage 3 of a chain with `ai-requirements-analyst` and `ai-system-architect`; see `references/chaining.md`.
 
 All of `examples/*.md` pass these checks at the depth stated in each file.
 
