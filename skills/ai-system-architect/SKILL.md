@@ -1,6 +1,6 @@
 ---
 name: ai-system-architect
-description: Acts as a professional System/Solution/Technical Architect, turning a business problem, PRD, SRS (including ai-requirements-analyst output), rough idea, or existing system description into implementation-ready architecture — drivers, quality attributes, trade-offs, selected architecture style, components, data/API/integration/security architecture, AI/RAG/agent architecture where relevant, infrastructure, observability, ADRs, risks, diagrams, and a phased blueprint. Use whenever someone describes a system to build ("I want to build an app that...", "design the architecture for..."), asks which architecture style, database, API style, or cloud fits their case, wants an architecture reviewed or compared against alternatives (e.g. monolith vs microservices), needs a migration path off a legacy system, or is architecting an AI/agentic/RAG system. Not for writing requirements from scratch (use ai-requirements-analyst) or generating production code.
+description: Acts as a professional System/Solution/Technical Architect, turning a business problem, PRD, SRS (including ai-requirements-analyst output), rough idea, or existing system description into implementation-ready architecture — drivers, quality attributes, trade-offs, selected architecture style, components, data/API/integration/security architecture, AI/RAG/agent architecture where relevant, infrastructure, observability, ADRs, risks, diagrams, and a phased blueprint. Use whenever someone describes a system to build ("I want to build an app that...", "design the architecture for..."), asks which architecture style, database, API style, or cloud fits their case, wants an architecture reviewed or compared against alternatives (e.g. monolith vs microservices), needs a migration path off a legacy system, or is architecting an AI/agentic/RAG system. Not for writing requirements from scratch (use ai-requirements-analyst) or production code. Stage 2 of the requirements → architecture → workflow chain.
 ---
 
 # AI System Architect
@@ -69,7 +69,7 @@ If later analysis surfaces a new high-impact unknown (e.g. you're deep into data
 
 ## Structure, IDs, and where the detail lives
 
-Use a stable ID scheme so decisions stay traceable: `AD` (architecture driver), `ADR` (architecture decision record), `RISK`, `DEBT`, `INT` (integration), `EVT` (event). Keep this `SKILL.md` as the operating discipline; the field-by-field structures, worked patterns, and full section lists live in `references/` so this file stays short:
+Use a stable ID scheme so decisions stay traceable: `AD` (architecture driver), `ADR` (architecture decision record), `RISK`, `DEBT`, `INT` (integration), `EVT` (event), `COMP` (component). `A` (assumption) and `Q` (open question) are shared with the other two skills: continue the numbering after the upstream document's highest number instead of restarting at 001. Requirement IDs from `ai-requirements-analyst` (`FR`, `NFR`, `BR`, `AIR`, `IR`, `CON`, `DEP`, `AC`) are cited, never redefined. Keep this `SKILL.md` as the operating discipline; the field-by-field structures, worked patterns, and full section lists live in `references/` so this file stays short:
 
 - **`references/architecture-methodology.md`** — the full workflow, architecture drivers and how to ID them, quality attributes, and scale analysis. Read before starting any Greenfield, Comparison, or Enterprise-mode analysis.
 - **`references/architecture-patterns.md`** — architecture styles (monolith through hexagonal/CQRS/event sourcing), the ADR format, system boundaries, component and module boundary definitions, and the anti-patterns list. Read before selecting or comparing architecture styles.
@@ -80,7 +80,20 @@ Use a stable ID scheme so decisions stay traceable: `AD` (architecture driver), 
 - **`references/output-templates.md`** — the full Standard Output Package (38 possible sections — only include the ones you have real content for), the implementation blueprint / phased roadmap format, and technology stack recommendation format.
 - **`references/examples.md`** — a worked walkthrough (a small fleet-management system, start to finish) showing how a Greenfield/MVP analysis fits together end to end.
 
-Run `scripts/validate_ids.py` on a finished document to catch duplicate or dangling `AD-`/`ADR-`/`RISK-`/`DEBT-` references before handing it over.
+Run `scripts/validate_ids.py <doc> --upstream <requirements doc>` on a finished document to catch duplicate or dangling IDs of every scheme above, and any cited requirement that the requirements document never defined (a typo, or an invented requirement), before handing it over.
+
+## Running as stage 2 of the chain
+
+This is the middle of three skills (`ai-requirements-analyst` → `ai-system-architect` → `ai-workflow-architect`). When the input is an SRS from the first skill, or the user says "run the chain", read `references/chaining.md` and:
+
+- Read the whole requirements document first. Take drivers, constraints, assumptions and questions from it; don't re-ask what it answers.
+- Start with a **Chain header** (`upstream=<requirements file>`, `next=ai-workflow-architect`).
+- **Cite every upstream item**: each `FR`, `NFR`, `BR`, `AIR`, `IR`, `CON`, `DEP` appears at least once, normally in a **Requirements coverage** table (upstream item → component, integration or ADR; or deferred / out of scope with a reason). Don't restate their definitions.
+- Keep **locked decisions** from the Handoff (for example "a human decides about people"). If the architecture would be better with a locked decision changed, say so in an ADR and a question, not silently.
+- Define your own IDs, continuing `A-` and `Q-` numbering; end with a **Handoff block** listing the components, integrations and ADRs the workflow stage must cover, locked decisions, blocking questions, and the next `A-` / `Q-` numbers.
+- Mark unknown integrations `REQUIRES VALIDATION` and say which workflow-level risk they create.
+
+If the user is not there to answer, record the questions and proceed on labeled assumptions (`references/chaining.md` section 4).
 
 ## Delivering the output
 

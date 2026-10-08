@@ -8,7 +8,10 @@ by appearing on the same line), assumptions, open questions, risks, and the
 result of validate_workflow.py.
 
 Usage:
-    python3 generate_report.py architecture.md [-o report.md] [--depth standard]
+    python3 generate_report.py architecture.md [-o report.md] [--depth quick|standard|full]
+
+Without --depth, the depth is read from a `Depth: ...` line near the top of the
+document (else standard), so the report always matches how the document was written.
 
 Writes to stdout unless -o is given. Exit code 0 even if validation finds
 problems (they are reported); 2 on usage errors. Standard library only.
@@ -45,9 +48,9 @@ def describe(sr, i):
     return cell(t)
 
 
-def build(text, depth):
+def build(text, depth, upstream=None, chained=False):
     sr = vids.scan(text)
-    errors, warnings = vw.validate(text, depth)
+    errors, warnings = vw.validate(text, depth, upstream=upstream, chained=chained)
     lines = text.splitlines()
     title = next((re.sub(r"^#\s+", "", l).strip() for l in lines if re.match(r"^#\s+", l)), "Workflow architecture")
     out = [f"# Report: {title}", "", f"Depth checked: **{depth}** · Validation: **{len(errors)} error(s), {len(warnings)} warning(s)**", ""]
@@ -101,7 +104,7 @@ def build(text, depth):
 
 
 def main(argv):
-    depth, outfile, path, it = "standard", None, None, iter(argv)
+    depth, outfile, path, it = None, None, None, iter(argv)
     for a in it:
         if a == "-o":
             outfile = next(it, None)
@@ -109,10 +112,12 @@ def main(argv):
             depth = next(it, "")
         elif not a.startswith("-"):
             path = a
-    if not path or depth not in vw.DEPTHS or not Path(path).exists():
+    if not path or not Path(path).exists() or (depth is not None and depth not in vw.DEPTHS):
         print(__doc__)
         return 2
-    report = build(Path(path).read_text(encoding="utf-8"), depth)
+    text = Path(path).read_text(encoding="utf-8")
+    upstream, chained, _ = vids.idscan.auto_upstream(path, text)
+    report = build(text, depth or vw.detect_depth(text), upstream, chained)
     if outfile:
         Path(outfile).write_text(report, encoding="utf-8")
         print(f"Wrote {outfile}")

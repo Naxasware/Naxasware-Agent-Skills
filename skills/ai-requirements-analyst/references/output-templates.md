@@ -28,6 +28,10 @@ Match the shape to what the user actually needs, not to how impressive a longer 
 
 If the user hasn't said which shape they want, infer from their input and say what you picked ("Since this is just an idea, here's a Discovery Report — let me know if you want it developed into a full spec").
 
+### If the user asks for a "PRD"
+
+A PRD is not a separate shape here. Deliver one **Full SRS** whose business sections (Executive Summary, Problem, Business Objectives, Scope, Out of Scope, MVP Recommendation) are written in Product Brief style and whose functional sections (Functional Requirements, Business Rules, Data, Permissions, Acceptance Criteria) are written at Developer Handoff depth. Say so in one line ("Delivered as a Full SRS, which covers what a PRD covers"). If they want only the product-facing half, use the Product Brief shape.
+
 ## Standard Output Package (for Full SRS / Requirements Generation)
 
 Only include sections you have real content for. Clearly label sections that are skipped for lack of information rather than quietly dropping them — the user should be able to tell "not applicable" apart from "not covered yet."
@@ -63,6 +67,7 @@ Only include sections you have real content for. Clearly label sections that are
 28 MVP Recommendation
 29 Requirements Quality Assessment
 30 Next Steps
+31 Handoff to next stage   (only when the document feeds ai-system-architect; see chaining.md)
 ```
 
 For a Quick Analysis, Discovery Report, or Developer Handoff, pick the subset that fits — you don't need all 30 sections for a one-page idea.

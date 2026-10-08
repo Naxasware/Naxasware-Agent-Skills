@@ -104,16 +104,16 @@ flowchart TD
 
 **DEC-003** — Above approval limit? Method: rule against configured limit (`NOT PROVIDED`). Output: approve-needed / direct.
 
-| Step ID | Name | Type | Failure | Retry | Timeout |
-|---|---|---|---|---|---|
-| STEP-001 | Receive email | Trigger | Mailbox unavailable → alert; polling resumes | Backoff with jitter | 30 s |
-| STEP-002 | Dedupe and store original | Storage | Fail closed; do not process | 3 attempts | 10 s |
-| STEP-003 | Extract fields with AI | AI call | Invalid output → one repair retry, then STEP-007 | 1 repair retry; 2 on transient API error | 60 s |
-| STEP-004 | Match to purchase order | API call (accounting) | Lookup failure → retry, then STEP-007 | 3 attempts, backoff | 15 s |
-| STEP-005 | Budget approval | Human approval | No answer → reminder, then escalate to backup approver; never auto-approve | One reminder at half the window | 48 h `[ASSUMED]` |
-| STEP-006 | Create bill | API call (accounting) | Unknown outcome → look up by external reference before retrying | Transient errors only, same external reference | 30 s |
-| STEP-007 | Clerk exception queue | Human approval | Queue unavailable → alert and hold message | 3 attempts | 10 s |
-| STEP-008 | Audit and notify | Storage | Non-blocking buffer; alert on audit failure | 5 attempts | 10 s |
+| Step ID | Name | Type | Input | Output | Failure | Retry | Timeout | Effect |
+|---|---|---|---|---|---|---|---|---|
+| STEP-001 | Receive email | Trigger | Mailbox poll | Message with attachment | Mailbox unavailable → alert; polling resumes | Backoff with jitter | 30 s | Read-only |
+| STEP-002 | Dedupe and store original | Storage | Message ID + attachment hash | Stored original, or "duplicate" | Fail closed; do not process | 3 attempts | 10 s | Reversible |
+| STEP-003 | Extract fields with AI | AI call | Document text | Typed JSON with source quotes | Invalid output → one repair retry, then STEP-007 | 1 repair retry; 2 on transient API error | 60 s | Read-only |
+| STEP-004 | Match to purchase order | API call (accounting) | Extracted PO number, supplier | Matched PO or no match | Lookup failure → retry, then STEP-007 | 3 attempts, backoff | 15 s | Read-only |
+| STEP-005 | Budget approval | Human approval | Invoice, fields, PO match | Approve / reject / edit | No answer → reminder, then escalate to backup approver; never auto-approve | One reminder at half the window | 48 h `[ASSUMED]` | Reversible |
+| STEP-006 | Create bill | API call (accounting) | Approved invoice | Bill ID | Unknown outcome → look up by external reference before retrying | Transient errors only, same external reference | 30 s | Irreversible |
+| STEP-007 | Clerk exception queue | Human approval | Item with failure context | Clerk decision | Queue unavailable → alert and hold message | 3 attempts | 10 s `[ASSUMED]` reminder window | Reversible |
+| STEP-008 | Audit and notify | Storage | Event | Audit row, notification | Non-blocking buffer; alert on audit failure | 5 attempts | 10 s | Reversible |
 
 ## Data Flow
 
@@ -129,7 +129,11 @@ Clerk queue (extraction or match problems) and budget approval (above limit). Ea
 
 ## Error Handling
 
-Per-step failure, retry and timeout are in the step table. Entry into the accounting system is the irreversible step: it happens last, after validation, matching and any approval, and is protected by an external reference derived from the supplier and invoice number so a retry or re-sent invoice cannot create a second bill (WR-003).
+Per-step failure, retry and timeout are in the step table. Error categories: input (unreadable or non-invoice attachment → clerk queue, no retry), tool/API (accounting or mailbox outage → retry transient errors, alert on permanent ones), AI (invalid or unsupported output → one repair retry, then clerk queue), business (duplicate or already-paid invoice → explicit branch, not an exception), human (no answer → reminder, then backup approver; never auto-approve). Nothing is "logged and ignored": every exhausted retry lands in the clerk queue with enough context to replay it.
+
+## Retry & Recovery
+
+Retry only transient failures, with backoff and jitter, as listed per step. Entry into the accounting system is the irreversible step: it happens last, after validation, matching and any approval, and is protected by an external reference derived from the supplier and invoice number so a retry or re-sent invoice cannot create a second bill (WR-003). After a timeout on STEP-006 the workflow looks the bill up by that reference before any retry. If a later step fails after the bill exists, the state is persisted and the workflow resumes from STEP-008; it never recreates the bill.
 
 ## Security
 
